@@ -42,7 +42,8 @@ local function include_rtpaths(fname, ext)
 end
 
 -- Global function that searches the path for the required file
-function find_required_path(module)
+function _G.lua_rtp_find_required_path(module)
+  pcall(require, module) -- for lazy-loading environments, make sure it's on runtimepath
   -- Look at package.config for directory separator string (it's the first line)
   local sep = string.match(package.config, '^[^\n]')
   -- Properly change '.' to separator (probably '/' on *nix and '\' on Windows)
@@ -51,17 +52,19 @@ function find_required_path(module)
 end
 
 local function attach()
-  -- Set options to open require with gf
-  vim.opt_local.include = [=[\v<((do|load)file|require)\s*\(?['"]\zs[^'"]+\ze['"]]=]
-  vim.opt_local.includeexpr = 'v:lua.find_required_path(v:fname)'
+  if vim.bo.filetype == 'lua' or vim.bo.filetype == 'fennel' then
+    -- Set options to open require with gf
+    vim.opt_local.include = [=[\v<((do|load)file|require)\s*\(?['"]\zs[^'"]+\ze['"]]=]
+    vim.opt_local.includeexpr = 'v:lua.lua_rtp_find_required_path(v:fname)'
+  end
 end
 
-vim.api.nvim_create_autocmd({ 'BufRead', 'BufNewFile' }, {
+vim.api.nvim_create_autocmd({ 'BufRead', 'BufNewFile', 'FileType' }, {
   pattern = '*.lua',
   callback = attach,
 })
 
 -- For lazy-loading environments, if current buffer is Lua, then run the autocmd
-if vim.bo.ft == 'lua' then
-  attach()
+if vim.bo.ft == 'lua' or vim.bo.ft == 'fennel' then
+  vim.schedule(attach)
 end
